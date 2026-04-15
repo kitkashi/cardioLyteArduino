@@ -1,21 +1,46 @@
-#include "BluetoothSerial.h"
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
-int analogPin = 4; // potentiometer wiper (middle terminal) connected to analog pin 3
-                    // outside leads to ground and VCC
-int val = 0;  // variable to store the value read
+// These stay the same so your phone recognizes the "folders"
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+BLECharacteristic *pCharacteristic;
+int analogPin = 4; 
+int val = 0;
 
 void setup() {
-  Serial.begin(9600);           //  setup serial
+  Serial.begin(115200);
+
+  // Initialize BLE
+  BLEDevice::init("SWEMatch_ESP32_Sensor"); 
+  BLEServer *pServer = BLEDevice::createServer();
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  pCharacteristic = pService->createCharacteristic(
+                      CHARACTERISTIC_UUID,
+                      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+                    );
+
+  pCharacteristic->addDescriptor(new BLE2902());
+  pService->start();
+  pServer->getAdvertising()->start();
+  
+  Serial.println("BLE Ready and Advertising...");
 }
 
 void loop() {
+  //Read your sensor
   val = analogRead(analogPin);
-  Serial.print(-100); // To freeze the lower limit
-  Serial.print(" ");
-  Serial.print(4200); // To freeze the upper limit
-  Serial.print(" ");
+
+  //Send it to the phone
+  pCharacteristic->setValue(String(val).c_str());
+  pCharacteristic->notify();
+
+  //Also print to Serial just so you can double-check on your laptop
   Serial.println(val);
-  delay(20);
-  // delay(200); // To send all three 'data' points to the plotter  // read the input pin
-    // Serial.println(val);          // debug value
+
+  delay(50); //reasonable delay
 }
